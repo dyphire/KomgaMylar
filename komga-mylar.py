@@ -94,6 +94,17 @@ class KomgaApi:
                 break
         return all_books
 
+    def get_komga_series_data(self, komga_series_id):
+        url = f"{self.base_url}/v1/series/{komga_series_id}"
+        try:
+            resp = self.session.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+            return data
+        except Exception as e:
+            print(f"获取系列 {komga_series_id} 数据失败")
+            return None
+
     def update_series_metadata(self, series_id, metadata):
         url = f"{self.base_url}/v1/series/{series_id}/metadata"
         try:
@@ -341,6 +352,10 @@ def update_komga_metadata_from_series_json(api: KomgaApi, series_list):
             if book_number_for_display:
                 book_metadata["title"] = f"卷 {book_number_for_display}"
                 book_metadata["number"] = book_number_for_display
+            if series.get("oneshot") is True:
+                book_metadata["summary"] = metadatas.get("summary")
+                book_metadata["links"] = series_metadata.get("links")
+                book_metadata["tags"] = series_metadata.get("tags")
             if book_metadata:
                 print(f"更新图书 {book['name']} ({book['id']}) 元数据: {list(book_metadata.keys())}")
                 try:
