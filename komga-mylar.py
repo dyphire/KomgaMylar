@@ -196,7 +196,7 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
     print(f"开始导出库 {library_id} 的系列到 {output_dir}")
     series_list = api.list_series_in_library(library_id)
     if not series_list:
-        print("未获取到任何系列，退出。")
+        print("未获取到任何系列，退出")
         return
 
     print(f"共获取到系列数：{len(series_list)}")
@@ -229,7 +229,11 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
 
         series_local_path = series.get("url")
         if not series_local_path:
-            print(f"[跳过] 系列 '{title}' 缺少目录信息，无法确定保存路径。")
+            print(f"[跳过] 系列 '{title}' 缺少目录信息，无法确定保存路径")
+            continue
+        
+        if series.get("oneshot") is True:
+            print(f"[跳过] 系列 '{title}' 是单行本，跳过导出")
             continue
 
         series_dir_name = Path(series_local_path).name
