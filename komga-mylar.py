@@ -310,12 +310,18 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
                 except Exception as e:
                     print(f"[⚠️] 系列 '{title}' 封面下载失败: {e}")
 
-def update_komga_metadata_from_series_json(api: KomgaApi, series_list):
+def update_komga_metadata_from_series_json(api: KomgaApi, series_list, mylar_metadata_path=None, library_root=None):
     for series in series_list:
         metadatas = series.get("metadata", {})
         series_local_path = series.get("url")
         if not series_local_path:
             continue
+
+        if mylar_metadata_path and library_root:
+            library_root = library_root.rstrip('/')
+            mylar_metadata_path = mylar_metadata_path.rstrip('/')
+            if series_local_path.startswith(library_root):
+                series_local_path = mylar_metadata_path + series_local_path[len(library_root):]
 
         if series.get("oneshot") is True:
             json_path = Path(series_local_path) / f"{series.get('name')}.oneshot.json"
@@ -376,6 +382,7 @@ def main():
     parser.add_argument("--library-id", help="库ID", default=os.getenv("KOMGA_LIBRARY_ID"))
     parser.add_argument("--output", help="导出目录", default="")
     parser.add_argument("--library-root", help="Komga 库根目录（仅在使用 --output 时用于还原目录结构）")
+    parser.add_argument("--mylar-metadata-path", help="Mylar 元数据路径（用于替换 library-root）")
     parser.add_argument("--save-cover", help="是否保存系列封面", action="store_true")
     parser.add_argument("--update-from-mylar-metadata", action="store_true",
                         help="根据 series.url 路径读取 series.json 并写入 Komga 元数据")
@@ -397,7 +404,7 @@ def main():
     api = KomgaApi(args.url, args.username, password)
     if args.update_from_mylar_metadata:
         series_list = api.list_series_in_library(args.library_id)
-        update_komga_metadata_from_series_json(api, series_list)
+        update_komga_metadata_from_series_json(api, series_list, args.mylar_metadata_path, args.library_root)
     else:
         export_series_as_mylar_json(api, args.library_id, args.save_cover, args.output, args.library_root)
 
