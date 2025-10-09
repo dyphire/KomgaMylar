@@ -232,10 +232,6 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
             print(f"[跳过] 系列 '{title}' 缺少目录信息，无法确定保存路径")
             continue
         
-        if series.get("oneshot") is True:
-            print(f"[跳过] 系列 '{title}' 是单行本，跳过导出")
-            continue
-
         series_dir_name = Path(series_local_path).name
         if output_dir:
             if library_root:
@@ -253,7 +249,10 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
             output_series_dir = Path(series_local_path)
 
         output_series_dir.mkdir(parents=True, exist_ok=True)
-        series_file = output_series_dir / "series.json"
+        if series.get("oneshot") is True:
+            series_file = output_series_dir / f"{series.get('name')}.oneshot.json"
+        else:
+            series_file = output_series_dir / "series.json"
 
         mylar_data = {
             "version": "1.0.2",
@@ -318,7 +317,10 @@ def update_komga_metadata_from_series_json(api: KomgaApi, series_list):
         if not series_local_path:
             continue
 
-        json_path = Path(series_local_path) / "series.json"
+        if series.get("oneshot") is True:
+            json_path = Path(series_local_path) / f"{series.get('name')}.oneshot.json"
+        else:
+            json_path = Path(series_local_path) / "series.json"
         if not json_path.exists():
             print(f"未找到 series.json: {json_path}", file=sys.stderr)
             continue
