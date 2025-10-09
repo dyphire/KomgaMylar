@@ -295,7 +295,10 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
         print(f"✅ 已导出系列 '{title}' 到 {series_file}")
 
         if download_covers:
-            cover_path = output_series_dir / "cover.jpg"
+            if series.get("oneshot") is True:
+                cover_path = output_series_dir / f"{series.get('name')}.cover.jpg"
+            else:
+                cover_path = output_series_dir / "cover.jpg"
             if cover_path.exists():
                 print(f"封面已存在，跳过下载: {cover_path}")
             else:
