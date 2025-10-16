@@ -121,38 +121,10 @@ class KomgaApi:
         except requests.RequestException as e:
             print(f"更新图书 {book_id} 的 metadata 失败: {e}", file=sys.stderr)
 
-# 中文数字映射
-CHINESE_NUM_MAP = {
-    "零": 0, "〇": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
-    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
-    "百": 100, "千": 1000, "万": 10000, "两": 2, "俩": 2,
-}
-
-def chinese_to_arabic(cn: str) -> int:
-    total = 0
-    num = 0
-    unit = 1
-    cn = cn[::-1]
-    for char in cn:
-        if char in CHINESE_NUM_MAP:
-            val = CHINESE_NUM_MAP[char]
-            if val >= 10:
-                if num == 0:
-                    num = 1
-                unit = val
-            else:
-                total += val * unit
-                unit = 1
-                num = 0
-    if unit > 1:
-        total += num * unit
-    return total if total > 0 else num
-
-
 volume_title_pattern = re.compile(
-    r'(?:vol(?:ume)?s?|巻|卷|册|冊|第)'
-    r'(?!.*(?:话|話|章|回|迴|篇|期|辑|輯|节|節|页|頁|部))'
-    r'[\W_]*?(?P<volNum>\d+|[一二三四五六七八九十百千零〇两俩]+)\s*(?:巻|卷|册|冊|集)?',
+    r'(?:vol(?:ume)?s?|巻|卷|册|冊)[\W_]*?(?P<volNum>\d+)|'
+    r'第\s*(?P<volNum2>\d+)\s*(?:巻|卷|册|冊|集)|'
+    r'(?P<volNum3>\d+)\s*(?:巻|卷|册|冊|集)',
     re.IGNORECASE
 )
 
@@ -161,9 +133,9 @@ def extract_vol_num(book) -> str | None:
     booktitle = (book.get("metadata") or {}).get("title") or ""
     match = volume_title_pattern.search(bookname) or volume_title_pattern.search(booktitle)
     if match:
-        vol_str = match.group("volNum")
+        vol_str = match.group("volNum") or match.group("volNum2") or match.group("volNum3")
         if vol_str:
-            vol_num = int(vol_str) if vol_str.isdigit() else chinese_to_arabic(vol_str)
+            vol_num = int(vol_str)
             return str(vol_num).zfill(2)
     return None
 
