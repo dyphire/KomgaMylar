@@ -27,11 +27,12 @@ class KomgaApi:
         })
         self.username = username
         self.password = password
+        self.session.auth = (username, password)
 
-        login_url = f"{self.base_url}/v1/login/set-cookie"
-        resp = self.session.get(login_url, auth=(username, password))
-        if resp.status_code != 204:
-            print(f"登录失败，状态码: {resp.status_code}", file=sys.stderr)
+        validate_url = f"{self.base_url}/v1/libraries"
+        resp = self.session.get(validate_url)
+        if resp.status_code == 401:
+            print("登录失败，状态码: 401 — 请检查用户名/密码或 KOMGA_URL", file=sys.stderr)
             sys.exit(1)
 
     def list_series_in_library(self, library_id):
