@@ -16,7 +16,7 @@ except ImportError:
     pass
 
 class KomgaApi:
-    def __init__(self, base_url, username, password):
+    def __init__(self, base_url, username, password, api_key=None):
         self.base_url = base_url.rstrip("/") + "/api"
         self.session = requests.Session()
         self.session.mount("http://", HTTPAdapter(max_retries=3))
@@ -27,13 +27,33 @@ class KomgaApi:
         })
         self.username = username
         self.password = password
-        self.session.auth = (username, password)
+        # Komga 支持 X-API-Key（优先）或 basic 认证
+        if api_key:
+            self.session.headers.update({"X-API-Key": api_key})
+        else:
+            self.session.auth = (username, password)
+        # 库根目录缓存（library_id → root），由内部从 Komga API 自动获取，无需 --library-root。
+        self._library_roots = {}
 
         validate_url = f"{self.base_url}/v1/libraries"
         resp = self.session.get(validate_url)
         if resp.status_code == 401:
             print("登录失败，状态码: 401 — 请检查用户名/密码或 KOMGA_URL", file=sys.stderr)
             sys.exit(1)
+
+    def get_library_root(self, library_id):
+        """内部获取库根目录（GET /v1/libraries/{id} → root），带进程内缓存。失败返回 None。"""
+        if library_id in self._library_roots:
+            return self._library_roots[library_id]
+        try:
+            resp = self.session.get(f"{self.base_url}/v1/libraries/{library_id}")
+            resp.raise_for_status()
+            root = resp.json().get("root")
+        except requests.RequestException as e:
+            print(f"获取库 {library_id} 根目录失败: {e}", file=sys.stderr)
+            root = None
+        self._library_roots[library_id] = root
+        return root
 
     def list_series_in_library(self, library_id):
         all_series = []
@@ -165,7 +185,7 @@ def normalize_age_rating(value):
         return "Adult"
 
 
-def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, output_dir=None, library_root=None):
+def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, output_dir=None):
     print(f"开始导出库 {library_id} 的系列到 {output_dir}")
     series_list = api.list_series_in_library(library_id)
     if not series_list:
@@ -215,6 +235,8 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
             series_dir = url_path
             series_file_stem = None
 
+        # 库根目录由内部从 Komga API 自动获取，用于还原相对目录结构。
+        library_root = api.get_library_root(library_id)
         if output_dir:
             if library_root:
                 library_root_path = Path(library_root).resolve()
@@ -295,7 +317,12 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
                 except Exception as e:
                     print(f"[⚠️] 系列 '{title}' 封面下载失败: {e}")
 
-def update_komga_metadata_from_series_json(api: KomgaApi, series_list, mylar_metadata_path=None, library_root=None):
+def update_komga_metadata_from_series_json(api: KomgaApi, series_list, mylar_metadata_path=None):
+    if not series_list:
+        return
+    # 库根目录由内部从 Komga API 自动获取（与导出端一致）。
+    library_id = series_list[0].get("libraryId")
+    library_root = api.get_library_root(library_id) if library_id else None
     for series in series_list:
         metadatas = series.get("metadata", {})
         series_local_path = series.get("url")
@@ -374,10 +401,10 @@ def main():
     parser = argparse.ArgumentParser(description="Komga 元数据导入导出 mylar 工具")
     parser.add_argument("--url", help="Komga 地址，形如 http://localhost:25600", default=os.getenv("KOMGA_URL"))
     parser.add_argument("--username", help="用户名", default=os.getenv("KOMGA_USERNAME"))
+    parser.add_argument("--api-key", help="Komga API Key（优先于用户名/密码）", default=os.getenv("KOMGA_API_KEY"))
     parser.add_argument("--library-id", help="库ID", default=os.getenv("KOMGA_LIBRARY_ID"))
     parser.add_argument("--output", help="导出目录", default="")
-    parser.add_argument("--library-root", help="Komga 库根目录（仅在使用 --output 时用于还原目录结构）")
-    parser.add_argument("--mylar-metadata-path", help="Mylar 元数据路径（用于替换 library-root）")
+    parser.add_argument("--mylar-metadata-path", help="Mylar 元数据路径（用于替换库根目录前缀）")
     parser.add_argument("--save-cover", help="是否保存系列封面", action="store_true")
     parser.add_argument("--update-from-mylar-metadata", action="store_true",
                         help="根据 series.url 路径读取 series.json 并写入 Komga 元数据")
@@ -396,12 +423,12 @@ def main():
         print("错误：必须指定 --library-id 或环境变量 KOMGA_LIBRARY_ID", file=sys.stderr)
         sys.exit(1)
 
-    api = KomgaApi(args.url, args.username, password)
+    api = KomgaApi(args.url, args.username, password, args.api_key)
     if args.update_from_mylar_metadata:
         series_list = api.list_series_in_library(args.library_id)
-        update_komga_metadata_from_series_json(api, series_list, args.mylar_metadata_path, args.library_root)
+        update_komga_metadata_from_series_json(api, series_list, args.mylar_metadata_path)
     else:
-        export_series_as_mylar_json(api, args.library_id, args.save_cover, args.output, args.library_root)
+        export_series_as_mylar_json(api, args.library_id, args.save_cover, args.output)
 
 if __name__ == "__main__":
     main()

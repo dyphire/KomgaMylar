@@ -10,7 +10,7 @@
 - 支持导出时保持 Komga 库根目录的原始目录结构
 - 可选下载系列封面图片
 - 读取 Komga 漫画目录中的 `series.json` 文件，批量更新 Komga 中系列及其图书的元数据
-- 支持通过命令行参数或环境变量配置 Komga 地址、用户名、密码、库ID等
+- 支持通过命令行参数或环境变量配置 Komga 地址、API key、用户名、密码、库ID等
 
 ---
 
@@ -36,16 +36,16 @@ python komga-mylar.py [OPTIONS]
 
 ### 参数说明
 
-| 参数                             | 说明                                                             | 示例                          |
-| -------------------------------- | ---------------------------------------------------------------- | ----------------------------- |
-| `--url`                        | Komga 服务器地址（含协议和端口）                                 | `http://localhost:25600`    |
-| `--username`                   | Komga 登录用户名                                                 | `admin`                     |
-| `--library-id`                 | 需要操作的库 ID                                                  | `123`                       |
-| `--output`                     | 导出目录，默认为当前目录                                         | `./export`                  |
-| `--library-root`               | Komga 库根目录，用于保持导出目录的相对结构                       | `/mnt/comics/komga_library` |
-| `--mylar-metadata-path`        | Mylar 元数据路径，用于替换 library-root（仅在 --update-from-mylar-metadata 时使用） | `/path/to/mylar/metadata` |
-| `--save-cover`                 | 是否下载并保存系列封面，默认不下载                               | (无参数，设置此开关即可)      |
-| `--update-from-mylar-metadata` | 从 Komga 漫画目录中的 `series.json` 读取元数据，批量更新 Komga | (无参数，设置此开关即可)      |
+| 参数                             | 说明                                                                 | 示例                          |
+| ------------------------------ | ------------------------------------------------------------------ | --------------------------- |
+| `--url`                        | Komga 服务器地址（含协议和端口）                                                | `http://localhost:25600`    |
+| `--api-key`                   | Komga API Key                                                        | `123456789`                     |
+| `--username`                   | Komga 登录用户名                                                        | `admin`                     |
+| `--library-id`                 | 需要操作的库 ID                                                          | `123`                       |
+| `--output`                     | 导出目录，默认为当前目录                                                       | `./export`                  |
+| `--mylar-metadata-path`        | Mylar 元数据路径，用于替换库根目录前缀（仅在 --update-from-mylar-metadata 时使用） | `/path/to/mylar/metadata`   |
+| `--save-cover`                 | 是否下载并保存系列封面，默认不下载                                                  | (无参数，设置此开关即可)               |
+| `--update-from-mylar-metadata` | 从 Komga 漫画目录中的 `series.json` 读取元数据，批量更新 Komga                      | (无参数，设置此开关即可)               |
 
 ### 示例
 
@@ -64,7 +64,7 @@ python komga-mylar.py --url http://localhost:25600 --username admin --library-id
 从 Komga 漫画目录中的 `series.json` 更新 Komga 元数据：
 
 > [!NOTE]
->
+> 
 > 使用此功能的前提是脚本和 Komga 服务必须处于同一台设备上
 
 ```bash
@@ -74,7 +74,7 @@ python komga-mylar.py --url http://localhost:25600 --username admin --library-id
 使用自定义 Mylar 元数据路径替换 library-root 从 `series.json` 更新 Komga 元数据：
 
 ```bash
-python komga-mylar.py --url http://localhost:25600 --username admin --library-id 123 --update-from-mylar-metadata --library-root /old/path --mylar-metadata-path /new/path
+python komga-mylar.py --url http://localhost:25600 --username admin --library-id 123 --update-from-mylar-metadata --mylar-metadata-path /path
 ```
 
 ---
