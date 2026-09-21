@@ -204,26 +204,35 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
         if not series_local_path:
             print(f"[跳过] 系列 '{title}' 缺少目录信息，无法确定保存路径")
             continue
-        
-        series_dir_name = Path(series_local_path).name
+
+        url_path = Path(series_local_path)
+        # oneshot 系列的 url 指向书籍 zip 文件（Komga 行为）：
+        # 目录基准为 zip 父目录、导出文件名取 zip 去扩展名
+        if series.get("oneshot") is True:
+            series_dir = url_path.parent
+            series_file_stem = url_path.stem
+        else:
+            series_dir = url_path
+            series_file_stem = None
+
         if output_dir:
             if library_root:
                 library_root_path = Path(library_root).resolve()
                 try:
-                    series_path_obj = Path(series_local_path).resolve()
+                    series_path_obj = series_dir.resolve()
                     relative_path = series_path_obj.relative_to(library_root_path)
                     output_series_dir = Path(output_dir) / relative_path
                 except Exception as e:
                     print(f"[跳过] 系列 '{title}' 的路径无法相对于库根目录解析：{e}")
                     continue
             else:
-                output_series_dir = Path(output_dir) / series_dir_name
+                output_series_dir = Path(output_dir) / series_dir.name
         else:
-            output_series_dir = Path(series_local_path)
+            output_series_dir = series_dir
 
         output_series_dir.mkdir(parents=True, exist_ok=True)
         if series.get("oneshot") is True:
-            series_file = output_series_dir / f"{series.get('name')}.oneshot.json"
+            series_file = output_series_dir / f"{series_file_stem}.oneshot.json"
         else:
             series_file = output_series_dir / "series.json"
 
@@ -269,7 +278,7 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
 
         if download_covers:
             if series.get("oneshot") is True:
-                cover_path = output_series_dir / f"{series.get('name')}.cover.jpg"
+                cover_path = output_series_dir / f"{series_file_stem}.cover.jpg"
             else:
                 cover_path = output_series_dir / "cover.jpg"
             if cover_path.exists():
@@ -293,16 +302,26 @@ def update_komga_metadata_from_series_json(api: KomgaApi, series_list, mylar_met
         if not series_local_path:
             continue
 
+        url_path = Path(series_local_path)
+        if series.get("oneshot") is True:
+            series_dir = url_path.parent
+            file_stem = url_path.stem
+        else:
+            series_dir = url_path
+            file_stem = None
+
         if mylar_metadata_path and library_root:
             library_root = library_root.rstrip('/')
             mylar_metadata_path = mylar_metadata_path.rstrip('/')
-            if series_local_path.startswith(library_root):
-                series_local_path = mylar_metadata_path + series_local_path[len(library_root):]
+            series_dir_str = str(series_dir)
+            if series_dir_str.startswith(library_root):
+                series_dir_str = mylar_metadata_path + series_dir_str[len(library_root):]
+            series_dir = Path(series_dir_str)
 
         if series.get("oneshot") is True:
-            json_path = Path(series_local_path) / f"{series.get('name')}.oneshot.json"
+            json_path = series_dir / f"{file_stem}.oneshot.json"
         else:
-            json_path = Path(series_local_path) / "series.json"
+            json_path = series_dir / "series.json"
         if not json_path.exists():
             print(f"未找到 series.json: {json_path}", file=sys.stderr)
             continue
