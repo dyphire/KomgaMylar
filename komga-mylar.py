@@ -274,7 +274,7 @@ def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, outp
                 "age_rating": normalize_age_rating(metadata.get("ageRating")) or None,
                 "collects": None,
                 "comic_image": "",
-                "total_issues": int(metadata.get("totalBookCount") or series.get("booksCount")),
+                "total_issues": int(metadata.get("totalBookCount") or 0),
                 "publication_run": "",
                 "status": mylar_status or "Continuing",
                 "language": metadata.get("language") or None,
