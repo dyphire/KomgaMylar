@@ -184,6 +184,101 @@ def normalize_age_rating(value):
     else:
         return "Adult"
 
+# 文件夹名中"全彩"/"完全版"关键词 -> 对应 tag
+_FOLDER_TAG_RULES = [
+    (re.compile(r"全彩"), "全彩版"),
+    (re.compile(r"彩色版"), "全彩版"),
+    (re.compile(r"完全版"), "完全版"),
+    (re.compile(r"新裝版"), "新装版"),
+    (re.compile(r"新装版"), "新装版"),
+    (re.compile(r"爱藏版"), "爱藏版"),
+    (re.compile(r"典藏版"), "典藏版"),
+    (re.compile(r"b漫版"), "bili"),
+    (re.compile(r"\[bili\]"), "bili"),
+    (re.compile(r"\[bilibili\]"), "bili"),
+    (re.compile(r"哔哩"), "bili"),
+]
+
+# 文件夹名中的出版社/汉化关键词
+_PUBLISHER_KEYWORDS = [
+    '台湾角川', '台湾东贩', '尖端', '青文', '东立', '长鸿', '尚禾', '大然', '龙成',
+    '群英', '未来数位', '新视界', '玉皇朝', '天下', '传信', '天闻角川',
+    'bilibili', '哔哩哔哩', '汉化', '生肉', '日版', '原版', '正版', '官方',
+    '中文版', '简中', '繁中', '简体中文', '繁体中文', '简体', '繁体',
+]
+
+# 繁体->简体单字映射，覆盖关键词中出现的繁体字
+_T2S_MAP = str.maketrans({
+    '灣': '湾', '販': '贩', '東': '东', '長': '长', '鴻': '鸿',
+    '龍': '龙', '來': '来', '數': '数', '位': '位', '視': '视',
+    '聞': '闻', '傳': '传', '嗶': '哔', '哩': '哩', '漢': '汉',
+    '簡': '简', '體': '体', '裝': '装', '愛': '爱', '藏': '藏',
+    '冊': '册', '說': '说',
+})
+
+def _find_publisher_keyword(folder_name: str) -> str | None:
+    """在文件夹名中查找第一个匹配的出版社/汉化关键词（兼容繁体）"""
+    simplified = folder_name.translate(_T2S_MAP)
+    for keyword in _PUBLISHER_KEYWORDS:
+        if keyword in simplified:
+            return keyword
+    return None
+
+def tag_by_foldername(api: KomgaApi, series_list):
+    """遍历系列，根据文件夹名中的关键词向系列 tags 追加标签，并识别出版社/汉化信息。
+    命中 _FOLDER_TAG_RULES 时，若对应标签词不在标题中则同步写入标题；
+    最后四个 bili 相关关键词命中时，标题统一追加（b漫版）后缀。"""
+    updated = 0
+    for series in series_list:
+        metadatas = series.get("metadata", {})
+        series_title = metadatas.get("title") or series.get("name") or ""
+        folder_name = Path(series.get("url", "")).name
+
+        existing_tags = metadatas.get("tags") or []
+        tag_names = {t.get("name", "") if isinstance(t, dict) else str(t) for t in existing_tags}
+
+        tags_to_add = []
+        title_suffixes = []
+        for pattern, tag in _FOLDER_TAG_RULES:
+            if not pattern.search(folder_name):
+                continue
+            if tag not in tag_names:
+                tags_to_add.append(tag)
+            # 命中规则时，若标题不含对应标签词，则同步写入标题；
+            # bili 相关四个关键词命中时，标题统一追加（b漫版）
+            title_word = "b漫版" if tag == "bili" else tag
+            if title_word not in series_title:
+                suffix = f"（{title_word}）"
+                if suffix not in title_suffixes:
+                    title_suffixes.append(suffix)
+
+        # 追加识别文件夹名中的出版社/汉化信息
+        publisher_keyword = _find_publisher_keyword(folder_name)
+        if publisher_keyword and publisher_keyword not in tag_names and publisher_keyword not in tags_to_add:
+            tags_to_add.append(publisher_keyword)
+
+        metadata_patch = {}
+        if tags_to_add:
+            metadata_patch["tags"] = list(tag_names) + tags_to_add
+
+        # 若系列 publisher 为空，则用识别到的关键词填充
+        if publisher_keyword and not metadatas.get("publisher"):
+            metadata_patch["publisher"] = publisher_keyword
+
+        new_title = series_title + "".join(title_suffixes)
+        if new_title != series_title:
+            metadata_patch["title"] = new_title
+
+        if metadata_patch:
+            print(f"[文件夹标签] '{series_title}' 文件夹='{folder_name}' 更新={metadata_patch}")
+            try:
+                api.update_series_metadata(series["id"], metadata_patch)
+                updated += 1
+            except Exception as e:
+                print(f"更新系列 '{series_title}' 元数据失败: {e}", file=sys.stderr)
+
+    print(f"共更新 {updated} 个系列元数据")
+
 
 def export_series_as_mylar_json(api: KomgaApi, library_id, download_covers, output_dir=None):
     print(f"开始导出库 {library_id} 的系列到 {output_dir}")
@@ -408,6 +503,9 @@ def main():
     parser.add_argument("--save-cover", help="是否保存系列封面", action="store_true")
     parser.add_argument("--update-from-mylar-metadata", action="store_true",
                         help="根据 series.url 路径读取 series.json 并写入 Komga 元数据")
+    parser.add_argument("--tag-by-foldername", action="store_true",
+                        help="遍历系列，根据文件夹名中的关键词（全彩/完全版/b漫版/出版社/汉化等）向 tags 追加标签，"
+                             "命中标签词且标题不含时同步写入标题（bili 相关词统一追加（b漫版）），publisher 为空时填充识别到的出版社")
 
     args = parser.parse_args()
 
@@ -427,6 +525,9 @@ def main():
     if args.update_from_mylar_metadata:
         series_list = api.list_series_in_library(args.library_id)
         update_komga_metadata_from_series_json(api, series_list, args.mylar_metadata_path)
+    elif args.tag_by_foldername:
+        series_list = api.list_series_in_library(args.library_id)
+        tag_by_foldername(api, series_list)
     else:
         export_series_as_mylar_json(api, args.library_id, args.save_cover, args.output)
 

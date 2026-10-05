@@ -10,6 +10,7 @@
 - 支持导出时保持 Komga 库根目录的原始目录结构
 - 可选下载系列封面图片
 - 读取 Komga 漫画目录中的 `series.json` 文件，批量更新 Komga 中系列及其图书的元数据
+- 根据系列文件夹名中的关键词（全彩/完全版/b漫版/出版社/汉化等）批量追加系列标签、同步标题后缀并填充 publisher
 - 支持通过命令行参数或环境变量配置 Komga 地址、API key、用户名、密码、库ID等
 
 ---
@@ -46,6 +47,7 @@ python komga-mylar.py [OPTIONS]
 | `--mylar-metadata-path`        | Mylar 元数据路径，用于替换库根目录前缀（仅在 --update-from-mylar-metadata 时使用） | `/path/to/mylar/metadata`   |
 | `--save-cover`                 | 是否下载并保存系列封面，默认不下载                                                  | (无参数，设置此开关即可)               |
 | `--update-from-mylar-metadata` | 从 Komga 漫画目录中的 `series.json` 读取元数据，批量更新 Komga                      | (无参数，设置此开关即可)               |
+| `--tag-by-foldername`          | 根据系列文件夹名中的关键词向 tags 追加标签，命中标签词且标题不含时同步写入标题，publisher 为空时填充识别到的出版社 | (无参数，设置此开关即可)               |
 
 ### 示例
 
@@ -75,6 +77,12 @@ python komga-mylar.py --url http://localhost:25600 --username admin --library-id
 
 ```bash
 python komga-mylar.py --url http://localhost:25600 --username admin --library-id 123 --update-from-mylar-metadata --mylar-metadata-path /path
+```
+
+根据系列文件夹名批量追加标签并同步标题：
+
+```bash
+python komga-mylar.py --url http://localhost:25600 --username admin --library-id 123 --tag-by-foldername
 ```
 
 ---
